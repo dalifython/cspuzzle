@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>슬라이딩 퍼즐 장난감 - 타임어택</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Share+Tech+Mono&display=swap');
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #374151;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 실제 장난감 같은 기기 프레임 */
+        .device-frame {
+            background-color: #EFEBE0;
+            box-shadow: 
+                inset 0 4px 10px rgba(255,255,255,0.8),
+                inset 0 -4px 10px rgba(0,0,0,0.1),
+                0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        /* 타일의 3D 입체감 효과 */
+        .tile-3d {
+            transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.1s;
+            box-shadow: 
+                inset 0 -5px 0 rgba(0,0,0,0.2), 
+                inset 0 2px 5px rgba(255,255,255,0.4),
+                0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .tile-3d:active {
+            transform: translateY(2px) scale(0.98);
+            box-shadow: 
+                inset 0 -2px 0 rgba(0,0,0,0.2), 
+                inset 0 2px 5px rgba(255,255,255,0.4),
+                0 2px 3px rgba(0,0,0,0.3);
+        }
+
+        /* 미니 디스플레이 스크린 효과 */
+        .screen-glow {
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+            background-color: #1a1a1a;
+        }
+
+        .mini-tile {
+            box-shadow: inset 0 0 4px rgba(255,255,255,0.3);
+            border-radius: 4px;
+        }
+
+        /* 디지털 타이머 폰트 */
+        .digital-font {
+            font-family: 'Share Tech Mono', monospace;
+            text-shadow: 0 0 5px rgba(74, 222, 128, 0.5);
+        }
+
+        /* 스크롤바 숨기기 (랭킹 모달용) */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* 애니메이션 */
+        @keyframes successFlash {
+            0%, 100% { background-color: #EFEBE0; }
+            50% { background-color: #A7F3D0; }
+        }
+        .win-animation {
+            animation: successFlash 1s ease-in-out 3;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen select-none overflow-hidden text-gray-800 relative">
+
+    <!-- 장난감 본체 -->
+    <div id="device" class="device-frame rounded-[2.5rem] p-5 w-full max-w-[380px] mx-4 relative border-4 border-[#dcd8cc]">
+        
+        <!-- 상단: 디스플레이 및 버튼부 -->
+        <div class="flex justify-between items-start mb-6 gap-3">
+            
+            <!-- 왼쪽: 목표 배열 디스플레이 (스크린) -->
+            <div class="screen-glow p-3 rounded-2xl border-4 border-gray-800 w-28 h-28 flex flex-col justify-between shrink-0">
+                <div id="target-grid" class="grid grid-cols-3 gap-1 h-full w-full">
+                    <!-- JS로 채워짐 -->
+                </div>
+            </div>
+
+            <!-- 오른쪽: 컨트롤 버튼들 및 타이머 -->
+            <div class="flex flex-col items-end gap-3 pt-1 w-full">
+                
+                <!-- 상단 버튼들 -->
+                <div class="flex gap-1.5">
+                    <!-- 랭킹 버튼 -->
+                    <button id="btn-rank" class="w-9 h-9 rounded-full bg-[#dcd8cc] flex items-center justify-center text-gray-600 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-[2px] active:shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                    </button>
+                    <!-- 햅틱 토글 버튼 -->
+                    <button id="btn-haptic" class="w-9 h-9 rounded-full bg-[#dcd8cc] flex items-center justify-center text-gray-600 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-[2px] active:shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)] relative">
+                        <svg id="icon-haptic-on" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path><path d="M2 8v8"></path><path d="M22 8v8"></path></svg>
+                        <svg id="icon-haptic-off" class="hidden absolute" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
+                    </button>
+                    <!-- 사운드 토글 버튼 -->
+                    <button id="btn-sound" class="w-9 h-9 rounded-full bg-[#dcd8cc] flex items-center justify-center text-gray-600 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-[2px] active:shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)] relative">
+                        <svg id="icon-sound-on" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                        <svg id="icon-sound-off" class="hidden absolute" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                    </button>
+                    <!-- 셔플(🔄) 버튼 -->
+                    <button id="btn-reset" class="w-9 h-9 rounded-full bg-[#dcd8cc] flex items-center justify-center text-gray-600 shadow-[inset_0_-3px_0_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-[2px] active:shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 16h5v5"></path></svg>
+                    </button>
+                </div>
+
+                <!-- 디지털 타이머 디스플레이 -->
+                <div class="w-full bg-[#111827] rounded-xl border-4 border-gray-700 shadow-[inset_0_2px_10px_rgba(0,0,0,0.8)] p-2 mt-1">
+                    <div id="timer-display" class="digital-font text-green-400 text-2xl text-center tracking-widest">
+                        00:00.00
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 하단: 메인 퍼즐 보드 -->
+        <div class="bg-[#dcd8cc] p-2 rounded-2xl shadow-[inset_0_4px_8px_rgba(0,0,0,0.1)]">
+            <div id="main-grid" class="grid grid-cols-3 gap-2 w-full aspect-square relative">
+                <!-- JS로 채워짐 -->
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- 승리 시 기록 등록 모달 오버레이 -->
+    <div id="win-message" class="fixed inset-0 z-40 hidden flex-col items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm px-4">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl text-center transform scale-0 transition-transform duration-300 w-full max-w-sm" id="win-modal">
+            <h2 class="text-3xl font-bold text-green-500 mb-1">CLEAR!</h2>
+            <p class="text-gray-500 mb-4 text-sm">퍼즐을 완성했습니다!</p>
+            
+            <div class="bg-gray-100 rounded-xl p-4 mb-4">
+                <div class="text-gray-500 text-xs mb-1">나의 기록</div>
+                <div id="final-time" class="digital-font text-3xl text-gray-800">00:00.00</div>
+            </div>
+
+            <input type="text" id="player-name" placeholder="닉네임을 입력하세요 (최대 8자)" maxlength="8" class="w-full bg-gray-100 border-2 border-gray-200 rounded-xl px-4 py-3 mb-4 text-center text-lg focus:outline-none focus:border-green-400 transition-colors">
+
+            <div class="flex flex-col gap-2">
+                <button id="btn-submit-score" class="w-full bg-green-500 text-white font-bold py-3 px-6 rounded-xl shadow-[0_4px_0_#166534] active:translate-y-[4px] active:shadow-none transition-all">
+                    랭킹 등록하기
+                </button>
+                <button id="btn-next" class="w-full bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-xl shadow-[0_4px_0_#9ca3af] active:translate-y-[4px] active:shadow-none transition-all mt-1">
+                    기록 안하고 다시하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 랭킹 모달 오버레이 -->
+    <div id="ranking-overlay" class="fixed inset-0 z-50 hidden flex-col items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm px-4">
+        <div class="bg-[#EFEBE0] rounded-[2rem] w-full max-w-sm flex flex-col overflow-hidden shadow-2xl h-[70vh]">
+            <!-- 헤더 -->
+            <div class="bg-gray-800 text-white p-4 flex justify-between items-center relative">
+                <h2 class="text-xl font-bold w-full text-center">🏆 TOP 100 랭킹</h2>
+                <button id="btn-close-ranking" class="absolute right-4 text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <!-- 리스트 -->
+            <div class="flex-1 overflow-y-auto no-scrollbar p-2 bg-gray-50" id="ranking-list">
+                <!-- 로딩 표시 -->
+                <div class="text-center py-10 text-gray-400">랭킹 정보를 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase 및 게임 로직 스크립트 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === 상태 변수 ===
+        const COLORS = {
+            1: '#f48fb1', // Pink
+            2: '#4caf50', // Green
+            3: '#2196f3', // Blue
+            4: '#4dd0e1', // Light Blue
+            5: '#ffeb3b', // Yellow
+            6: '#f44336', // Red
+            7: '#9c27b0', // Purple
+            8: '#ff9800', // Orange
+            0: 'transparent' // Empty
+        };
+
+        let board = [];
+        let target = [];
+        let gameWon = false;
+        
+        // 오디오 & 햅틱 상태
+        let isAudioEnabled = true;
+        let isHapticEnabled = true;
+        let audioCtx = null;
+        
+        // 타이머 상태
+        let timerInterval = null;
+        let startTime = 0;
+        let elapsedMs = 0;
+        let finalTimeMs = 0;
+
+        // Firebase 상태
+        let db, auth, appId, user;
+        let globalRankings = [];
+
+        // === DOM 요소 ===
+        const mainGrid = document.getElementById('main-grid');
+        const targetGrid = document.getElementById('target-grid');
+        const timerDisplay = document.getElementById('timer-display');
+        
+        const btnReset = document.getElementById('btn-reset');
+        const btnSound = document.getElementById('btn-sound');
+        const btnHaptic = document.getElementById('btn-haptic');
+        const btnRank = document.getElementById('btn-rank');
+        
+        const iconSoundOn = document.getElementById('icon-sound-on');
+        const iconSoundOff = document.getElementById('icon-sound-off');
+        const iconHapticOn = document.getElementById('icon-haptic-on');
+        const iconHapticOff = document.getElementById('icon-haptic-off');
+        
+        const winMessage = document.getElementById('win-message');
+        const winModal = document.getElementById('win-modal');
+        const finalTimeDisplay = document.getElementById('final-time');
+        const playerNameInput = document.getElementById('player-name');
+        const btnSubmitScore = document.getElementById('btn-submit-score');
+        const btnNext = document.getElementById('btn-next');
+        
+        const rankingOverlay = document.getElementById('ranking-overlay');
+        const btnCloseRanking = document.getElementById('btn-close-ranking');
+        const rankingList = document.getElementById('ranking-list');
+        const device = document.getElementById('device');
+
+
+        // === Firebase 초기화 및 리스너 ===
+        function initFirebase() {
+            try {
+                const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+                if(firebaseConfigStr === '{}') throw new Error("No config");
+                
+                const firebaseConfig = JSON.parse(firebaseConfigStr);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+                initAuth();
+
+                onAuthStateChanged(auth, (u) => {
+                    user = u;
+                    if (user) {
+                        setupLeaderboardListener();
+                    }
+                });
+            } catch(e) {
+                console.warn("Firebase가 초기화되지 않았습니다. 로컬 모드로 작동합니다.", e);
+                globalRankings = [{name: "Genius", time: 15400}, {name: "FastHand", time: 24200}];
+                renderLeaderboard();
+            }
+        }
+
+        function setupLeaderboardListener() {
+            if (!user || !db) return;
+            const leaderboardRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            
+            onSnapshot(leaderboardRef, (snapshot) => {
+                const records = [];
+                snapshot.forEach(doc => {
+                    records.push({ id: doc.id, ...doc.data() });
+                });
+                
+                records.sort((a, b) => a.time - b.time);
+                globalRankings = records.slice(0, 100);
+                renderLeaderboard();
+            }, (error) => {
+                console.error("랭킹 정보 로드 실패:", error);
+                rankingList.innerHTML = `<div class="text-center py-10 text-red-400">데이터를 불러오지 못했습니다.</div>`;
+            });
+        }
+
+        async function submitScoreToFirebase(name, timeMs) {
+            if (!user || !db) return;
+            try {
+                const leaderboardRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                await addDoc(leaderboardRef, {
+                    userId: user.uid,
+                    name: name || "익명",
+                    time: timeMs,
+                    timestamp: serverTimestamp()
+                });
+            } catch (e) {
+                console.error("점수 등록 실패:", e);
+                alert("기록 등록에 실패했습니다.");
+            }
+        }
+
+
+        // === 타이머 로직 ===
+        function formatTime(ms) {
+            const m = Math.floor(ms / 60000);
+            const s = Math.floor((ms % 60000) / 1000);
+            const cs = Math.floor((ms % 1000) / 10);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            elapsedMs = Date.now() - startTime;
+            timerDisplay.textContent = formatTime(elapsedMs);
+        }
+
+        function startTimer() {
+            if (!timerInterval && !gameWon) {
+                startTime = Date.now() - elapsedMs;
+                timerInterval = setInterval(updateTimer, 10);
+            }
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function resetTimer() {
+            stopTimer();
+            elapsedMs = 0;
+            timerDisplay.textContent = "00:00.00";
+        }
+
+
+        // === 피드백 (사운드/햅틱) 로직 ===
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!isAudioEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'slide') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+                gainNode.gain.setValueAtTime(0.5, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'error') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'win') {
+                [440, 554, 659, 880].forEach((freq, i) => {
+                    const oscTone = audioCtx.createOscillator();
+                    const gainTone = audioCtx.createGain();
+                    oscTone.connect(gainTone);
+                    gainTone.connect(audioCtx.destination);
+                    oscTone.type = 'sine';
+                    oscTone.frequency.value = freq;
+                    const st = now + (i * 0.15);
+                    gainTone.gain.setValueAtTime(0, st);
+                    gainTone.gain.linearRampToValueAtTime(0.3, st + 0.05);
+                    gainTone.gain.linearRampToValueAtTime(0, st + 0.3);
+                    oscTone.start(st);
+                    oscTone.stop(st + 0.3);
+                });
+            }
+        }
+
+        function triggerHaptic(type = 'light') {
+            if (!isHapticEnabled || !navigator.vibrate) return;
+            if (type === 'light') navigator.vibrate(15);
+            else if (type === 'heavy') navigator.vibrate([30, 50, 30]);
+        }
+
+
+        // === 게임 핵심 로직 ===
+        function getInversions(arr) {
+            let inversions = 0;
+            for (let i = 0; i < arr.length - 1; i++) {
+                for (let j = i + 1; j < arr.length; j++) {
+                    if (arr[i] > 0 && arr[j] > 0 && arr[i] > arr[j]) inversions++;
+                }
+            }
+            return inversions;
+        }
+
+        function generatePuzzle() {
+            gameWon = false;
+            resetTimer();
+            winMessage.classList.add('hidden');
+            winMessage.classList.remove('flex');
+            winModal.classList.remove('scale-100');
+            device.classList.remove('win-animation');
+            playerNameInput.value = '';
+
+            let base = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+            
+            board = [...base];
+            for (let i = 0; i < 200; i++) {
+                const emptyIdx = board.indexOf(0);
+                const validMoves = getValidMoves(emptyIdx);
+                const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+                [board[emptyIdx], board[randomMove]] = [board[randomMove], board[emptyIdx]];
+            }
+
+            target = [...base];
+            for (let i = target.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [target[i], target[j]] = [target[j], target[i]];
+            }
+
+            if (getInversions(board) % 2 !== getInversions(target) % 2) {
+                if (target[0] !== 0 && target[1] !== 0) {
+                    [target[0], target[1]] = [target[1], target[0]];
+                } else {
+                    [target[8], target[7]] = [target[7], target[8]];
+                }
+            }
+
+            if (board.every((v, i) => v === target[i])) {
+                generatePuzzle();
+                return;
+            }
+
+            renderTarget();
+            renderBoard();
+        }
+
+        function getValidMoves(emptyIdx) {
+            const moves = [];
+            const row = Math.floor(emptyIdx / 3);
+            const col = emptyIdx % 3;
+            if (row > 0) moves.push(emptyIdx - 3);
+            if (row < 2) moves.push(emptyIdx + 3);
+            if (col > 0) moves.push(emptyIdx - 1);
+            if (col < 2) moves.push(emptyIdx + 1);
+            return moves;
+        }
+
+        function handleTileClick(index) {
+            if (gameWon) return;
+            initAudio();
+            startTimer();
+
+            const emptyIdx = board.indexOf(0);
+            const validMoves = getValidMoves(emptyIdx);
+
+            if (validMoves.includes(index)) {
+                [board[index], board[emptyIdx]] = [board[emptyIdx], board[index]];
+                playSound('slide');
+                triggerHaptic('light');
+                renderBoard();
+                checkWin();
+            } else if (board[index] !== 0) {
+                playSound('error');
+            }
+        }
+
+        function checkWin() {
+            const isWin = board.every((val, index) => val === target[index]);
+            if (isWin) {
+                gameWon = true;
+                stopTimer();
+                finalTimeMs = elapsedMs;
+                
+                setTimeout(() => {
+                    playSound('win');
+                    triggerHaptic('heavy');
+                    device.classList.add('win-animation');
+                    
+                    finalTimeDisplay.textContent = formatTime(finalTimeMs);
+                    winMessage.classList.remove('hidden');
+                    winMessage.classList.add('flex');
+                    setTimeout(() => winModal.classList.add('scale-100'), 50);
+                }, 300);
+            }
+        }
+
+        // === 렌더링 로직 ===
+        function renderTarget() {
+            targetGrid.innerHTML = '';
+            target.forEach(val => {
+                const el = document.createElement('div');
+                el.className = 'mini-tile w-full h-full';
+                el.style.backgroundColor = val === 0 ? '#111' : COLORS[val];
+                if(val !== 0) el.style.boxShadow = `0 0 5px ${COLORS[val]}80, inset 0 0 2px rgba(255,255,255,0.5)`;
+                targetGrid.appendChild(el);
+            });
+        }
+
+        function renderBoard() {
+            mainGrid.innerHTML = '';
+            board.forEach((val, index) => {
+                const el = document.createElement('div');
+                if (val === 0) {
+                    el.className = 'rounded-xl';
+                } else {
+                    el.className = 'tile-3d rounded-xl w-full h-full cursor-pointer touch-none';
+                    el.style.backgroundColor = COLORS[val];
+                    el.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        handleTileClick(index);
+                    });
+                }
+                mainGrid.appendChild(el);
+            });
+        }
+
+        function renderLeaderboard() {
+            if (globalRankings.length === 0) {
+                rankingList.innerHTML = `<div class="text-center py-10 text-gray-500">아직 등록된 기록이 없습니다.</div>`;
+                return;
+            }
+
+            let html = '';
+            globalRankings.forEach((record, index) => {
+                const rankColor = index === 0 ? 'text-yellow-500 font-bold' : 
+                                  index === 1 ? 'text-gray-400 font-bold' : 
+                                  index === 2 ? 'text-amber-600 font-bold' : 'text-gray-600';
+                
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`;
+                
+                html += `
+                    <div class="flex justify-between items-center bg-white p-3 mb-2 rounded-xl shadow-sm border border-gray-100">
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 text-center ${rankColor}">${medal}</span>
+                            <span class="font-bold text-gray-800">${record.name}</span>
+                        </div>
+                        <span class="digital-font text-green-600 tracking-wide">${formatTime(record.time)}</span>
+                    </div>
+                `;
+            });
+            rankingList.innerHTML = html;
+        }
+
+
+        // === 이벤트 리스너 연결 ===
+        btnReset.addEventListener('click', () => {
+            initAudio();
+            triggerHaptic();
+            generatePuzzle();
+        });
+
+        btnSound.addEventListener('click', () => {
+            initAudio();
+            isAudioEnabled = !isAudioEnabled;
+            iconSoundOn.classList.toggle('hidden', !isAudioEnabled);
+            iconSoundOff.classList.toggle('hidden', isAudioEnabled);
+            if(isAudioEnabled) playSound('slide');
+            triggerHaptic('light');
+        });
+
+        btnHaptic.addEventListener('click', () => {
+            initAudio();
+            isHapticEnabled = !isHapticEnabled;
+            iconHapticOn.classList.toggle('hidden', !isHapticEnabled);
+            iconHapticOff.classList.toggle('hidden', isHapticEnabled);
+            if(isHapticEnabled) navigator.vibrate(15);
+        });
+
+        btnRank.addEventListener('click', () => {
+            initAudio();
+            triggerHaptic();
+            rankingOverlay.classList.remove('hidden');
+            rankingOverlay.classList.add('flex');
+        });
+
+        btnCloseRanking.addEventListener('click', () => {
+            initAudio();
+            triggerHaptic();
+            rankingOverlay.classList.add('hidden');
+            rankingOverlay.classList.remove('flex');
+        });
+
+        btnNext.addEventListener('click', () => {
+            initAudio();
+            triggerHaptic();
+            generatePuzzle();
+        });
+
+        btnSubmitScore.addEventListener('click', async () => {
+            initAudio();
+            triggerHaptic();
+            
+            const name = playerNameInput.value.trim() || '익명';
+            btnSubmitScore.disabled = true;
+            btnSubmitScore.textContent = '등록 중...';
+            
+            await submitScoreToFirebase(name, finalTimeMs);
+            
+            btnSubmitScore.disabled = false;
+            btnSubmitScore.textContent = '랭킹 등록하기';
+            winMessage.classList.add('hidden');
+            winMessage.classList.remove('flex');
+            
+            generatePuzzle();
+            rankingOverlay.classList.remove('hidden');
+            rankingOverlay.classList.add('flex');
+        });
+
+        initFirebase();
+        generatePuzzle();
+
+    </script>
+</body>
+</html>
